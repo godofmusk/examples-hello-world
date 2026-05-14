@@ -1,3 +1,42 @@
+// mhrv-rs exit node — deploy as an HTTP endpoint on any serverless
+// TypeScript host with a public IP that isn't a Google datacenter
+// (Deno Deploy, fly.io, your own VPS, etc.). Uses only web-standard
+// `Request` / `Response` / `fetch` so it's portable across runtimes.
+//
+// Purpose: chain client → Apps Script → this exit node → destination.
+// Apps Script's UrlFetchApp can't reach Cloudflare-protected sites that
+// flag Google datacenter IPs as bots (chatgpt.com, claude.ai, grok.com,
+// many other CF-fronted SaaS). This exit node sits between Apps Script
+// and the destination; the destination sees the exit node's outbound IP
+// (generally not flagged as Google datacenter) and accepts the request.
+//
+// Setup:
+//   1. Pick a host that runs web-standard fetch handlers (e.g. Deno
+//      Deploy, fly.io with a thin server wrapper, or any cheap VPS
+//      running Deno / Node + this script as a handler).
+//   2. Paste the contents of this file as the request handler.
+//   3. Set PSK below to a strong secret (`openssl rand -hex 32` from
+//      a terminal — DO NOT leave the placeholder in production).
+//   4. Deploy and copy the public URL of the deployed handler.
+//   5. In mhrv-rs config.json, add:
+//        "exit_node": {
+//          "enabled": true,
+//          "relay_url": "https://your-deployed-exit-node.example.com",
+//          "psk": "<the same PSK you set above>",
+//          "mode": "selective",
+//          "hosts": ["chatgpt.com", "claude.ai", "x.com", "grok.com"]
+//        }
+//
+// Threat model: PSK is the only thing keeping this from being an open
+// proxy on the public internet. Treat it like a password: do not commit
+// to source control, do not share publicly, rotate if leaked. The exit
+// node refuses all requests that don't carry the matching PSK.
+//
+// Failure mode: if the exit node is unreachable, mhrv-rs falls back to
+// the regular Apps Script relay automatically — the only consequence
+// of an offline exit node is that ChatGPT/Claude/Grok stop working;
+// other sites are unaffected.
+
 const PSK = "Mb.13851385";
 
 // Headers the client may send that must NOT be forwarded to the
